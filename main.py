@@ -29,9 +29,9 @@ def search_api(query, page):
             file.write(response.text)
         return response.text
     else:
-        raise Exception(f"请求失败，状态码：{response.status_code}")
+        raise Exception(f"请求失败，状态码：{response.status_code},当前查询：{query},当前页面：{page}")
 
-def bs(html_content,db):
+def bs(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     # 获取列表容器
     shop_list = soup.find('div', {'id': 'shop-all-list'})
@@ -69,13 +69,15 @@ def bs(html_content,db):
         print(f"分类: {category}")
         print(f"地点: {location}")
         print("-" * 50)
-        db.execute(f"insert into scenic_spots(name,image_url,spot_url,rating,review_count,category,location) values('{name}','{image_url}','{spot_url}','{rating}','{review_count}','{category}','{location}')")
+        return name, image_url, spot_url, rating, review_count, category, location
 
 if __name__ == '__main__':
     db = MySQLDatabase()
     for i in range(1, 14):
         html = search_api(query='公园', page=i)
-        bs(html, db)
+        name, image_url, spot_url, rating, review_count, category, location =bs(html)
+        db.execute(f"insert into scenic_spots(name,image_url,spot_url,rating,review_count,category,location) values('{name}','{image_url}','{spot_url}','{rating}','{review_count}','{category}','{location}')")
+
     db.commit()
 
 
