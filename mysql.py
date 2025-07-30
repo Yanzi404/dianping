@@ -2,12 +2,16 @@ import pymysql
 from pymysql import MySQLError, cursors
 
 
-
 class MySQLDatabase:
-    def __init__(self):
-        self.connection = None
-        self.cursor = None
-        self.__connect()
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(MySQLDatabase, cls).__new__(cls)
+            cls._instance.connection = None
+            cls._instance.cursor = None
+            cls._instance.__connect()
+        return cls._instance
 
     def __connect(self):
         """连接到MySQL数据库"""

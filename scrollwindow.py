@@ -1,16 +1,17 @@
 import time
+
 import pyautogui
-import pytesseract
+
+
 def get_active_window_region():
     """
     获取当前活动窗口的区域坐标
     注意: 这个功能需要额外库支持，如 pygetwindow
     """
-    # 如果获取失败，返回整个屏幕区域
     screen_width, screen_height = pyautogui.size()
     return 0, 0,int(screen_width/3), screen_height
 
-def scroll_and_read(scroll_count=5, scroll_pause=1, read_region=None):
+def scroll(scroll_count=5, scroll_pause=1, read_region=None):
     """
     模拟下滑操作并读取屏幕文本
 
@@ -23,33 +24,21 @@ def scroll_and_read(scroll_count=5, scroll_pause=1, read_region=None):
     time.sleep(2)
 
     # 如果没有指定读取区域，尝试获取活动窗口区域
-    if read_region is None:
-        read_region = get_active_window_region()
+
+    screen_width, screen_height = pyautogui.size()
+    read_region = (0, 0,int(screen_width/3), screen_height)
 
     for i in range(scroll_count):
         print(f"\n--- 第 {i + 1} 次下滑 ---")
-
         try:
             # 截取指定区域的屏幕
-            screenshot = pyautogui.screenshot(region=read_region)
-
+            # screenshot = pyautogui.screenshot(region=read_region)
             # 可以保存截图用于调试
-            screenshot.save(f'screenshot_{i}.png')
-
-            # 使用 OCR 读取文本
-            text = pytesseract.image_to_string(screenshot, lang='chi_sim')  # 中文+英文识别
-
-            # 打印读取到的文本
-            print("读取到的文本:")
-            print(text.strip())
-            print("-" * 50)
-
+            # screenshot.save(f'screenshot_{i}.png')
             # 模拟下滑操作 (向下滚动鼠标滚轮)
-            pyautogui.scroll(-500)  # 负值表示向下滚动
-
+            pyautogui.scroll(-50)  # 负值表示向下滚动
             # 等待页面稳定
             time.sleep(scroll_pause)
-
         except Exception as e:
             print(f"第 {i + 1} 次操作出错: {e}")
             break
@@ -61,7 +50,7 @@ if __name__ == "__main__":
     time.sleep(5)
 
     try:
-        scroll_and_read(scroll_count=5, scroll_pause=1.5)
+        scroll(scroll_count=99999, scroll_pause=1)
     except KeyboardInterrupt:
         print("\n用户中断操作")
     except Exception as e:
