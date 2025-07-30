@@ -1,0 +1,55 @@
+import json
+from mitmproxy import http
+from pathlib import Path
+from datetime import datetime
+
+from mysql import MySQLDatabase
+
+# 确保保存目录存在
+SAVE_DIR = Path("./dianping_responses")
+SAVE_DIR.mkdir(exist_ok=True)
+def response(flow: http.HTTPFlow):
+    # 检查是否是目标URL
+    if "https://m.dianping.com/ugc/review/reviewlist" in flow.request.url:
+        try:
+            if flow.response.status_code != 200:
+                raise Exception("响应状态不为200")
+            # 获取响应内容
+            response_content = flow.response.content
+            response_json=flow.response.json()
+            if response_json['code']!=200:
+                raise Exception(f"响应参数不为200，响应内容：{response_json}")
+
+            try:
+                # 构建保存文件名（使用时间戳和URL部分作为文件名）
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                offset = flow.request.query.get('offset')
+                shop_uuid=flow.request.query.get('shopUuid')
+                filename = f"{timestamp}_{shop_uuid}_{offset}.json"
+                # 保存响应内容
+                save_path = SAVE_DIR / filename
+                with open(save_path, "wb") as f:
+                    f.write(response_content)
+            except Exception as e:
+                raise Exception(f"保存文件时发生错误: {e}")
+
+            parse_json(response_json)
+
+        except Exception as e:
+            print(f"{e}")
+
+def parse_json(json:dict,shop_uuid,offset):
+    db = MySQLDatabase()
+    review_list=json['reviewInfo']['reviewListInfo']['reviewList']
+    for review in review_list:
+        reviewId=review['reviewId']
+        userId=review['userId']
+        addTime=review['addTime']
+        text=review['reviewBody']['children'][0]['children'][0]['text']
+        star=review['star']
+        db.execute(f"insert into reviews(reviewId,shopUuid,userId,addTime,text,star,offset) values({reviewId},{shop_uuid},{userId},'{addTime}','{text}',{star},{offset})")
+    db.commit()
+
+def test_parse_json():
+    with open("./dianping_responses/20250730_145727_reviewlist.json", "r") as f:
+        parse_json(json.load(f),123,10)
