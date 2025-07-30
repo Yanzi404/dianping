@@ -5,6 +5,10 @@ from bs4 import BeautifulSoup
 
 from mysql import MySQLDatabase
 
+"""
+采用请求接口+解析html的方式，得到马蜂窝景点信息
+"""
+
 
 def api(page):
     url = "https://www.mafengwo.cn/ajax/router.php"
@@ -34,9 +38,7 @@ def api(page):
         print(f"请求失败：{e}，当前页面：{page}")
 
 
-
-
-def parse(data,db):
+def parse(data, db):
     # 提取HTML文本
     html_list = data["data"]["list"]
 
@@ -53,15 +55,15 @@ def parse(data,db):
             img_tag = a_tag.find('img')
             img_src = img_tag.get('src', '') if img_tag else ''
             print(f"Title: {title}, Href: {href}, Image: {img_src}")
-            db.execute(f"INSERT INTO `mafengwo_list` (`title`, `href`, `image`) VALUES ('{title}', '{href}', '{img_src}')")
+            db.execute(
+                f"INSERT INTO `mafengwo_list` (`title`, `href`, `image`) VALUES ('{title}', '{href}', '{img_src}')")
     db.commit()
 
 
 if __name__ == '__main__':
     db = MySQLDatabase()
     json_data = api(page=2)
-    parse(json_data,db)
+    parse(json_data, db)
     # for page in range(2,3):
     #     json_data = api(page)
     #     parse(json_data,db)
-

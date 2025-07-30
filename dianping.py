@@ -3,6 +3,10 @@ from urllib.parse import quote
 from bs4 import BeautifulSoup
 from mysql import MySQLDatabase
 
+"""
+采用请求接口+解析html的方式，得到大众点评景点信息
+"""
+
 
 def search_api(query, page):
     url = f"https://www.dianping.com/search/keyword/3/0_{query}/o11p{page}"
@@ -30,6 +34,7 @@ def search_api(query, page):
         return response.text
     else:
         raise Exception(f"请求失败，状态码：{response.status_code},当前查询：{query},当前页面：{page}")
+
 
 def bs(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -71,14 +76,12 @@ def bs(html_content):
         print("-" * 50)
         return name, image_url, spot_url, rating, review_count, category, location
 
+
 if __name__ == '__main__':
     db = MySQLDatabase()
     for i in range(1, 14):
         html = search_api(query='公园', page=i)
-        name, image_url, spot_url, rating, review_count, category, location =bs(html)
-        db.execute(f"insert into scenic_spots(name,image_url,spot_url,rating,review_count,category,location) values('{name}','{image_url}','{spot_url}','{rating}','{review_count}','{category}','{location}')")
-
+        name, image_url, spot_url, rating, review_count, category, location = bs(html)
+        db.execute(
+            f"insert into scenic_spots(name,image_url,spot_url,rating,review_count,category,location) values('{name}','{image_url}','{spot_url}','{rating}','{review_count}','{category}','{location}')")
     db.commit()
-
-
-

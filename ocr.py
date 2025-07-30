@@ -1,6 +1,12 @@
 import time
 import pyautogui
 import pytesseract
+
+"""
+通过pyautogui+ocr识别大众点评评论
+"""
+
+
 def get_active_window_region():
     """
     获取当前活动窗口的区域坐标
@@ -8,7 +14,8 @@ def get_active_window_region():
     """
     # 如果获取失败，返回整个屏幕区域
     screen_width, screen_height = pyautogui.size()
-    return 0, 0,int(screen_width/3), screen_height
+    return 0, 0, int(screen_width / 3), screen_height
+
 
 def scroll_and_read(scroll_count=5, scroll_pause=1, read_region=None):
     """
