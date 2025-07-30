@@ -10,7 +10,7 @@ SAVE_DIR = Path("./dianping_responses")
 SAVE_DIR.mkdir(exist_ok=True)
 def response(flow: http.HTTPFlow):
     # 检查是否是目标URL
-    if "https://m.dianping.com/ugc/review/reviewlist" in flow.request.url:
+    if "m.dianping.com/ugc/review/reviewlist" in flow.request.url:
         try:
             if flow.response.status_code != 200:
                 raise Exception("响应状态不为200")
@@ -33,7 +33,7 @@ def response(flow: http.HTTPFlow):
             except Exception as e:
                 raise Exception(f"保存文件时发生错误: {e}")
 
-            parse_json(response_json)
+            parse_json(response_json,shop_uuid,offset)
 
         except Exception as e:
             print(f"{e}")
@@ -47,9 +47,13 @@ def parse_json(json:dict,shop_uuid,offset):
         addTime=review['addTime']
         text=review['reviewBody']['children'][0]['children'][0]['text']
         star=review['star']
-        db.execute(f"insert into reviews(reviewId,shopUuid,userId,addTime,text,star,offset) values({reviewId},{shop_uuid},{userId},'{addTime}','{text}',{star},{offset})")
+        bigurls=[]
+        for reviewPic in review['reviewPics']:
+            bigurls.append(reviewPic['bigurl'])
+        pics=','.join(bigurls)
+        db.execute(f"insert into reviews(reviewId,shopUuid,userId,addTime,text,pics,star,offset) values({reviewId},{shop_uuid},{userId},'{addTime}','{text}','{pics}',{star},{offset})")
     db.commit()
 
 def test_parse_json():
-    with open("./dianping_responses/20250730_145727_reviewlist.json", "r") as f:
+    with open("./dianping_responses/20250730173251_17602428_0.json", "r") as f:
         parse_json(json.load(f),123,10)

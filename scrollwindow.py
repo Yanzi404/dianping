@@ -1,3 +1,4 @@
+import subprocess
 import time
 
 import pyautogui
@@ -45,6 +46,13 @@ def scroll(scroll_count=5, scroll_pause=1, read_region=None):
 
 
 if __name__ == "__main__":
+    # mitmweb -s dianping_interceptor.py
+    print("正在启动MITM代理...")
+    try:
+        subprocess.run(["mitmweb", "-s", "dianping_interceptor.py"], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"命令执行失败: {e}")
+
     print("准备开始自动下滑并读取文本...")
     print("请在5秒内切换到目标应用窗口...")
     time.sleep(5)
