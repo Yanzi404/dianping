@@ -7,7 +7,6 @@ from pynput import keyboard
 添加了暂停/继续功能(按空格键控制)
 """
 
-
 class ScrollController:
     def __init__(self):
         self.paused = False

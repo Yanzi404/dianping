@@ -19,9 +19,9 @@ class MySQLDatabase:
             self.connection = pymysql.connect(
                 host='47.122.123.221',  # 数据库主机地址
                 port=3306,
-                user='zyz',  # 数据库用户名
-                password='k7SGLkP4pwSTedGN',  # 数据库密码
-                database='zyz',  # 数据库名
+                user='root',  # 数据库用户名
+                password='cs8Gz7dKHDyhAPaz',  # 数据库密码
+                database='dianping_spiders',  # 数据库名
                 charset='utf8mb4',
             )
             self.cursor = self.connection.cursor(cursor=cursors.DictCursor)
