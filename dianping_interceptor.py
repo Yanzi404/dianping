@@ -1,4 +1,5 @@
 import json
+from typing import Dict, Any, Optional
 from mitmproxy import http
 from pathlib import Path
 from datetime import datetime
@@ -8,61 +9,137 @@ from mysql import MySQLDatabase
 """
 通过mitmproxy拦截解析请求，获取大众点评评论
 """
+
 # 确保保存目录存在
 SAVE_DIR = Path("./dianping_responses")
 SAVE_DIR.mkdir(exist_ok=True)
 
+# 常量定义
+TARGET_URL_PATTERN = "m.dianping.com/ugc/review/reviewlist"
+SUCCESS_STATUS_CODE = 200
 
-def response(flow: http.HTTPFlow):
+
+def response(flow: http.HTTPFlow) -> None:
+    """处理HTTP响应，拦截大众点评评论数据"""
     # 检查是否是目标URL
-    if "m.dianping.com/ugc/review/reviewlist" in flow.request.url:
-        try:
-            if flow.response.status_code != 200:
-                raise Exception("响应状态不为200")
-            response_json = flow.response.json()
-            if response_json['code'] != 200:
-                raise Exception(f"响应参数不为200，响应内容：{response_json}")
-            try:
-                # 创建以shopUuid命名的子目录
-                shop_uuid = flow.request.query.get('shopUuid')
-                shop_dir = SAVE_DIR / shop_uuid
-                shop_dir.mkdir(parents=True, exist_ok=True)
+    if TARGET_URL_PATTERN not in flow.request.url:
+        return
+        
+    try:
+        # 验证响应状态
+        if flow.response.status_code != SUCCESS_STATUS_CODE:
+            print(f"响应状态码错误: {flow.response.status_code}")
+            return
+            
+        response_json = flow.response.json()
+        if response_json.get('code') != SUCCESS_STATUS_CODE:
+            print(f"响应参数错误，code: {response_json.get('code')}")
+            return
+            
+        # 获取请求参数
+        shop_uuid = flow.request.query.get('shopUuid')
+        offset = flow.request.query.get('offset')
+        
+        if not shop_uuid or not offset:
+            print("缺少必要参数: shopUuid 或 offset")
+            return
+            
+        # 保存响应文件
+        if not _save_response_file(flow, shop_uuid, offset):
+            return
+            
+        # 解析并保存到数据库
+        parse_json(response_json, shop_uuid, offset)
+        
+    except json.JSONDecodeError:
+        print("响应内容不是有效的JSON格式")
+    except Exception as e:
+        print(f"处理响应时发生错误: {e}")
 
-                # 构建保存文件名（使用时间戳和URL部分作为文件名）
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                offset = flow.request.query.get('offset')
-                filename = f"{timestamp}_{offset}.json"
 
-                # 保存响应内容
-                save_path = shop_dir / filename
-                with open(save_path, "wb") as f:
-                    f.write(flow.response.content)
-            except Exception as e:
-                raise Exception(f"保存文件时发生错误: {e}")
-            parse_json(response_json, shop_uuid, offset)
-        except Exception as e:
-            print(f"{e}")
+def _save_response_file(flow: http.HTTPFlow, shop_uuid: str, offset: str) -> bool:
+    """保存响应文件到本地"""
+    try:
+        # 创建以shopUuid命名的子目录
+        shop_dir = SAVE_DIR / shop_uuid
+        shop_dir.mkdir(parents=True, exist_ok=True)
+
+        # 构建保存文件名（使用时间戳和URL部分作为文件名）
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"{timestamp}_{offset}.json"
+
+        # 保存响应内容
+        save_path = shop_dir / filename
+        with open(save_path, "wb") as f:
+            f.write(flow.response.content)
+        return True
+        
+    except Exception as e:
+        print(f"保存文件时发生错误: {e}")
+        return False
 
 
-def parse_json(json: dict, shop_uuid, offset):
-    db = MySQLDatabase()
-    review_list = json['reviewInfo']['reviewListInfo']['reviewList']
-    for review in review_list:
-        reviewId = review['reviewId']
-        userId = review['userId']
-        addTime = review['addTime']
-        text = review['reviewBody']['children'][0]['children'][0]['text']
-        star = review['star']
+def parse_json(response_data: Dict[str, Any], shop_uuid: str, offset: str) -> None:
+    """解析JSON数据并保存到数据库"""
+    try:
+        db = MySQLDatabase()
+        review_list = response_data['reviewInfo']['reviewListInfo']['reviewList']
+        
+        for review in review_list:
+            # 提取评论数据
+            review_id = review.get('reviewId')
+            user_id = review.get('userId')
+            add_time = review.get('addTime')
+            star = review.get('star')
+            
+            # 安全提取评论文本
+            text = _extract_review_text(review)
+            
+            # 提取图片URL
+            pics = _extract_review_pics(review)
+            
+            # 使用参数化查询防止SQL注入
+            sql = """
+                INSERT INTO reviews(reviewId, shopUuid, userId, addTime, text, pics, star, offset) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            db.execute(sql, (review_id, shop_uuid, user_id, add_time, text, pics, star, offset))
+        
+        db.commit()
+        print(f'当前页：{offset}')
+        
+    except KeyError as e:
+        print(f"JSON数据结构错误，缺少字段: {e}")
+    except Exception as e:
+        print(f"解析JSON数据时发生错误: {e}")
+
+
+def _extract_review_text(review: Dict[str, Any]) -> str:
+    """安全提取评论文本"""
+    try:
+        return review['reviewBody']['children'][0]['children'][0]['text']
+    except (KeyError, IndexError, TypeError):
+        return ""
+
+
+def _extract_review_pics(review: Dict[str, Any]) -> str:
+    """提取评论图片URL"""
+    try:
         bigurls = []
-        for reviewPic in review['reviewPics']:
-            bigurls.append(reviewPic['bigurl'])
-        pics = ','.join(bigurls)
-        db.execute(
-            f"insert into reviews(reviewId,shopUuid,userId,addTime,text,pics,star,offset) values({reviewId},{shop_uuid},{userId},'{addTime}','{text}','{pics}',{star},{offset})")
-    db.commit()
-    print(f'当前页：{offset}')
+        for review_pic in review.get('reviewPics', []):
+            if 'bigurl' in review_pic:
+                bigurls.append(review_pic['bigurl'])
+        return ','.join(bigurls)
+    except (KeyError, TypeError):
+        return ""
 
 
-def test_parse_json():
-    with open("./dianping_responses/20250730173251_17602428_0.json", "r") as f:
-        parse_json(json.load(f), 123, 10)
+def test_parse_json() -> None:
+    """测试函数"""
+    try:
+        with open("./dianping_responses/20250730173251_17602428_0.json", "r", encoding='utf-8') as f:
+            parse_json(json.load(f), "123", "10")
+    except FileNotFoundError:
+        print("测试文件不存在")
+    except Exception as e:
+        print(f"测试时发生错误: {e}")

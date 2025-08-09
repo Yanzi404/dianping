@@ -1,4 +1,5 @@
 import time
+from typing import Optional, Tuple
 import pyautogui
 from pynput import keyboard
 
@@ -7,21 +8,28 @@ from pynput import keyboard
 添加了暂停/继续功能(按空格键控制)
 """
 
+
 class ScrollController:
-    def __init__(self):
-        self.paused = False
-        self.should_exit = False
+    """滚动控制器，管理暂停和退出状态"""
+    
+    def __init__(self) -> None:
+        self.paused: bool = False
+        self.should_exit: bool = False
 
-    def toggle_pause(self):
+    def toggle_pause(self) -> None:
+        """切换暂停状态"""
         self.paused = not self.paused
-        print("\n程序已", "暂停" if self.paused else "继续")
+        status = "暂停" if self.paused else "继续"
+        print(f"\n程序已{status}")
 
-    def request_exit(self):
+    def request_exit(self) -> None:
+        """请求退出程序"""
         self.should_exit = True
         print("\n请求退出程序...")
 
 
-def on_press(key, controller):
+def on_press(key: keyboard.Key, controller: ScrollController) -> Optional[bool]:
+    """键盘按键处理函数"""
     try:
         if key == keyboard.Key.space:
             controller.toggle_pause()
@@ -30,9 +38,10 @@ def on_press(key, controller):
             return False  # 停止监听
     except AttributeError:
         pass
+    return None
 
 
-def scroll(scroll_count=5, scroll_pause=1, read_region=None):
+def scroll(scroll_count: int = 5, scroll_pause: float = 1, read_region: Optional[Tuple[int, int, int, int]] = None) -> None:
     """
     模拟下滑操作并读取屏幕文本
 
@@ -46,47 +55,52 @@ def scroll(scroll_count=5, scroll_pause=1, read_region=None):
 
     # 启动键盘监听
     listener = keyboard.Listener(
-        on_press=lambda key: on_press(key, controller))
+        on_press=lambda key: on_press(key, controller)
+    )
     listener.start()
 
-    # 确保有足够时间将鼠标移动到安全位置
-    time.sleep(2)
+    try:
+        # 确保有足够时间将鼠标移动到安全位置
+        time.sleep(2)
 
-    screen_width, screen_height = pyautogui.size()
-    read_region = (0, 0, int(screen_width / 3), screen_height)
+        # 获取屏幕尺寸并设置默认读取区域
+        screen_width, screen_height = pyautogui.size()
+        if read_region is None:
+            read_region = (0, 0, int(screen_width / 3), screen_height)
 
-    print("操作提示:")
-    print("- 按空格键暂停/继续")
-    print("- 按ESC键退出程序")
+        print("操作提示:")
+        print("- 按空格键暂停/继续")
+        print("- 按ESC键退出程序")
 
-    for i in range(scroll_count):
-        if controller.should_exit:
-            break
-
-        while controller.paused:
-            time.sleep(0.1)
+        for i in range(scroll_count):
             if controller.should_exit:
                 break
 
-        print(f"\n--- 第 {i + 1} 次下滑 ---")
-        try:
-            # 截取指定区域的屏幕
-            # screenshot = pyautogui.screenshot(region=read_region)
-            # 可以保存截图用于调试
-            # screenshot.save(f'screenshot_{i}.png')
-            # 模拟下滑操作 (向下滚动鼠标滚轮)
-            pyautogui.scroll(-200)  # 负值表示向下滚动
-            # 等待页面稳定
-            time.sleep(scroll_pause)
-            pyautogui.scroll(100) #向上滚动100
-            time.sleep(scroll_pause)
-        except Exception as e:
-            print(f"第 {i + 1} 次操作出错: {e}")
-            break
+            # 等待暂停状态结束
+            while controller.paused and not controller.should_exit:
+                time.sleep(0.1)
+
+            if controller.should_exit:
+                break
+
+            print(f"\n--- 第 {i + 1} 次下滑 ---")
+            try:
+                # 模拟下滑操作 (向下滚动鼠标滚轮)
+                pyautogui.scroll(-200)  # 负值表示向下滚动
+                time.sleep(scroll_pause)  # 等待页面稳定
+                
+                pyautogui.scroll(100)  # 向上滚动100
+                time.sleep(scroll_pause)
+                
+            except Exception as e:
+                print(f"第 {i + 1} 次操作出错: {e}")
+                break
+    finally:
+        listener.stop()
 
 
-if __name__ == "__main__":
-    # mitmweb -s dianping_interceptor.py
+def main() -> None:
+    """主程序入口"""
     print("准备开始自动下滑并读取文本...")
     print("请在5秒内切换到目标应用窗口...")
     time.sleep(5)
@@ -99,3 +113,8 @@ if __name__ == "__main__":
         print(f"发生错误: {e}")
     finally:
         print("操作结束")
+
+
+if __name__ == "__main__":
+    # mitmweb -s dianping_interceptor.py
+    main()
