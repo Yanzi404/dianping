@@ -49,6 +49,3 @@ pytweening==1.2.0
 MouseInfo==0.1.3
 
 # macOS特定依赖（仅在macOS上需要，用于pynput）
-pyobjc-core==11.1
-pyobjc-framework-Cocoa==11.1
-pyobjc-framework-Quartz==11.1

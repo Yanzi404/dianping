@@ -133,14 +133,3 @@ def _extract_review_pics(review: Dict[str, Any]) -> str:
         return ','.join(bigurls)
     except (KeyError, TypeError):
         return ""
-
-
-def test_parse_json() -> None:
-    """测试函数"""
-    try:
-        with open("./dianping_responses/20250730173251_17602428_0.json", "r", encoding='utf-8') as f:
-            parse_json(json.load(f), "123", "10")
-    except FileNotFoundError:
-        print("测试文件不存在")
-    except Exception as e:
-        print(f"测试时发生错误: {e}")

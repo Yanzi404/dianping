@@ -34,8 +34,7 @@ class ProxyManager:
             if self.system == "darwin":  # macOS
                 return self._set_macos_proxy()
             elif self.system == "windows":  # Windows
-                # return self._set_windows_proxy()
-                return True
+                return self._set_windows_proxy()
             else:
                 print(f"不支持的操作系统: {self.system}")
                 return False
@@ -49,8 +48,7 @@ class ProxyManager:
             if self.system == "darwin":  # macOS
                 return self._restore_macos_proxy()
             elif self.system == "windows":  # Windows
-                # return self._restore_windows_proxy()
-                return True
+                return self._restore_windows_proxy()
             else:
                 return False
         except Exception as e:
@@ -445,7 +443,7 @@ def main() -> None:
 
 
         # 4. 开始滚动采集
-        scroll(scroll_count=99999, scroll_pause=2, speed=-200)
+        scroll(scroll_count=99999, scroll_pause=2, speed=-1000)
 
     except KeyboardInterrupt:
         print("\n用户中断操作")
