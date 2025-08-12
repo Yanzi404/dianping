@@ -442,6 +442,7 @@ def main() -> None:
             time.sleep(1)
         print("\n开始数据采集...")
 
+
         # 4. 开始滚动采集
         scroll(scroll_count=99999, scroll_pause=2, speed=-200)
 
