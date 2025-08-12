@@ -5,6 +5,7 @@ import signal
 import os
 import atexit
 import threading
+from pathlib import Path
 from typing import Optional, Tuple
 import pyautogui
 from pynput import keyboard
@@ -607,6 +608,8 @@ def main() -> None:
     print("正在初始化服务...")
 
     try:
+        # 确保保存目录存在
+        Path("log/mitm_log").mkdir(exist_ok=True)
         # 1. 启动mitmweb服务
         print("\n1. 启动mitmweb服务...")
         mitm_process = MitmWebManager()
