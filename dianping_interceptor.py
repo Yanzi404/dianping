@@ -12,7 +12,7 @@ from mysql import MySQLDatabase
 """
 
 # 确保保存目录存在
-SAVE_DIR = Path("./dianping_responses")
+SAVE_DIR = Path("log/dianping_responses")
 SAVE_DIR.mkdir(exist_ok=True)
 
 # 常量定义

@@ -224,7 +224,7 @@ class MitmWebManager:
                 return False
 
             # 创建日志文件
-            log_filename = f"mitmweb_{int(time.time())}.log"
+            log_filename = f"log/mitm_log/mitmweb_{int(time.time())}.log"
             self.log_file = open(log_filename, 'w', encoding='utf-8')
 
             # 启动mitmweb
@@ -629,7 +629,7 @@ def main() -> None:
         print("- 浏览器已配置使用系统代理")
         print("- 已打开目标网页")
         print("- 准备开始数据采集")
-        print("\n请在10秒内切换到目标应用窗口...")
+        print("\n请在3秒内切换到目标应用窗口...")
 
         for i in range(3, 0, -1):
             print(f"倒计时: {i} 秒", end='\r')
