@@ -114,39 +114,108 @@ class ProxyManager:
         """设置Windows代理"""
         try:
             import winreg
+            import ctypes
+            from ctypes import wintypes
+            
+            print(f"正在设置Windows代理: {self.proxy_host}:{self.proxy_port}")
             
             # 打开注册表项
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
-                0, winreg.KEY_ALL_ACCESS
-            )
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                    0, winreg.KEY_ALL_ACCESS
+                )
+            except PermissionError:
+                print("错误: 无法访问注册表，可能需要管理员权限")
+                return False
             
             # 保存原始设置
             try:
                 self.original_settings['ProxyEnable'] = winreg.QueryValueEx(key, "ProxyEnable")[0]
+                print(f"保存原始ProxyEnable: {self.original_settings['ProxyEnable']}")
             except FileNotFoundError:
                 self.original_settings['ProxyEnable'] = 0
+                print("ProxyEnable不存在，设为默认值0")
                 
             try:
                 self.original_settings['ProxyServer'] = winreg.QueryValueEx(key, "ProxyServer")[0]
+                print(f"保存原始ProxyServer: {self.original_settings['ProxyServer']}")
             except FileNotFoundError:
                 self.original_settings['ProxyServer'] = ""
+                print("ProxyServer不存在，设为默认值空字符串")
+            
+            # 保存ProxyOverride设置
+            try:
+                self.original_settings['ProxyOverride'] = winreg.QueryValueEx(key, "ProxyOverride")[0]
+                print(f"保存原始ProxyOverride: {self.original_settings['ProxyOverride']}")
+            except FileNotFoundError:
+                self.original_settings['ProxyOverride'] = ""
+                print("ProxyOverride不存在，设为默认值空字符串")
             
             # 设置代理
+            proxy_server = f"{self.proxy_host}:{self.proxy_port}"
+            
+            # 启用代理
             winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 1)
-            winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, f"{self.proxy_host}:{self.proxy_port}")
+            print("已启用代理")
+            
+            # 设置代理服务器
+            winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy_server)
+            print(f"已设置代理服务器: {proxy_server}")
+            
+            # 设置代理覆盖（绕过本地地址）
+            proxy_override = "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*;<local>"
+            winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, proxy_override)
+            print("已设置代理覆盖规则")
             
             winreg.CloseKey(key)
             
-            # 刷新IE设置
-            subprocess.run(["rundll32.exe", "inetcpl.cpl,ClearMyTracksByProcess", "8"], check=False)
+            # 通知系统代理设置已更改
+            try:
+                # 定义Windows API函数
+                internet_set_option = ctypes.windll.wininet.InternetSetOptionW
+                internet_set_option.argtypes = [
+                    wintypes.HANDLE,    # hInternet
+                    wintypes.DWORD,     # dwOption
+                    wintypes.LPVOID,    # lpBuffer
+                    wintypes.DWORD      # dwBufferLength
+                ]
+                internet_set_option.restype = wintypes.BOOL
+                
+                # INTERNET_OPTION_SETTINGS_CHANGED = 39
+                # INTERNET_OPTION_REFRESH = 37
+                result1 = internet_set_option(None, 39, None, 0)
+                result2 = internet_set_option(None, 37, None, 0)
+                
+                if result1 and result2:
+                    print("已通知系统刷新代理设置")
+                else:
+                    print("警告: 无法通知系统刷新代理设置，可能需要重启浏览器")
+                    
+            except Exception as refresh_error:
+                print(f"警告: 刷新代理设置时出错: {refresh_error}")
             
-            print(f"已设置Windows代理: {self.proxy_host}:{self.proxy_port}")
+            # 额外的刷新方法
+            try:
+                subprocess.run([
+                    "rundll32.exe", "url.dll,FileProtocolHandler", 
+                    "about:blank"
+                ], check=False, timeout=5)
+            except Exception:
+                pass
+            
+            print(f"✅ Windows代理设置完成: {self.proxy_host}:{self.proxy_port}")
+            print("提示: 如果浏览器代理未生效，请重启浏览器")
             return True
             
+        except ImportError:
+            print("错误: 无法导入winreg模块，请确保在Windows系统上运行")
+            return False
         except Exception as e:
             print(f"设置Windows代理失败: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _restore_macos_proxy(self) -> bool:
@@ -178,26 +247,72 @@ class ProxyManager:
         """恢复Windows代理设置"""
         try:
             import winreg
+            import ctypes
+            from ctypes import wintypes
             
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
-                0, winreg.KEY_ALL_ACCESS
-            )
+            print("正在恢复Windows代理设置...")
+            
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                    0, winreg.KEY_ALL_ACCESS
+                )
+            except PermissionError:
+                print("错误: 无法访问注册表，可能需要管理员权限")
+                return False
             
             # 恢复原始设置
-            winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 
-                            self.original_settings.get('ProxyEnable', 0))
-            winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, 
-                            self.original_settings.get('ProxyServer', ""))
+            proxy_enable = self.original_settings.get('ProxyEnable', 0)
+            proxy_server = self.original_settings.get('ProxyServer', "")
+            proxy_override = self.original_settings.get('ProxyOverride', "")
+            
+            print(f"恢复ProxyEnable: {proxy_enable}")
+            winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, proxy_enable)
+            
+            print(f"恢复ProxyServer: {proxy_server}")
+            winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy_server)
+            
+            print(f"恢复ProxyOverride: {proxy_override}")
+            winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, proxy_override)
             
             winreg.CloseKey(key)
             
-            print("已恢复Windows代理设置")
+            # 通知系统代理设置已更改
+            try:
+                # 定义Windows API函数
+                internet_set_option = ctypes.windll.wininet.InternetSetOptionW
+                internet_set_option.argtypes = [
+                    wintypes.HANDLE,    # hInternet
+                    wintypes.DWORD,     # dwOption
+                    wintypes.LPVOID,    # lpBuffer
+                    wintypes.DWORD      # dwBufferLength
+                ]
+                internet_set_option.restype = wintypes.BOOL
+                
+                # INTERNET_OPTION_SETTINGS_CHANGED = 39
+                # INTERNET_OPTION_REFRESH = 37
+                result1 = internet_set_option(None, 39, None, 0)
+                result2 = internet_set_option(None, 37, None, 0)
+                
+                if result1 and result2:
+                    print("已通知系统刷新代理设置")
+                else:
+                    print("警告: 无法通知系统刷新代理设置")
+                    
+            except Exception as refresh_error:
+                print(f"警告: 刷新代理设置时出错: {refresh_error}")
+            
+            print("✅ Windows代理设置已恢复")
             return True
             
+        except ImportError:
+            print("错误: 无法导入winreg模块，请确保在Windows系统上运行")
+            return False
         except Exception as e:
             print(f"恢复Windows代理失败: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
 
@@ -334,7 +449,7 @@ def on_press(key: keyboard.Key, controller: ScrollController) -> Optional[bool]:
     return None
 
 
-def scroll(scroll_count: int = 5, scroll_pause: float = 1, read_region: Optional[Tuple[int, int, int, int]] = None) -> None:
+def scroll(scroll_count: int = 5, scroll_pause: float = 1, speed: int = -200, read_region: Optional[Tuple[int, int, int, int]] = None) -> None:
     """
     模拟下滑操作并读取屏幕文本
 
@@ -379,7 +494,7 @@ def scroll(scroll_count: int = 5, scroll_pause: float = 1, read_region: Optional
             print(f"\n--- 第 {i + 1} 次下滑 ---")
             try:
                 # 模拟下滑操作 (向下滚动鼠标滚轮)
-                pyautogui.scroll(-200)  # 负值表示向下滚动
+                pyautogui.scroll(speed)  # 负值表示向下滚动
                 time.sleep(scroll_pause)  # 等待页面稳定
                 
                 pyautogui.scroll(100)  # 向上滚动100
@@ -436,13 +551,13 @@ def main() -> None:
         print("- 准备开始数据采集")
         print("\n请在10秒内切换到目标应用窗口...")
         
-        for i in range(10, 0, -1):
+        for i in range(3, 0, -1):
             print(f"倒计时: {i} 秒", end='\r')
             time.sleep(1)
         print("\n开始数据采集...")
         
         # 4. 开始滚动采集
-        scroll(scroll_count=99999, scroll_pause=2)
+        scroll(scroll_count=99999, scroll_pause=2,speed=-200)
         
     except KeyboardInterrupt:
         print("\n用户中断操作")
