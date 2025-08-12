@@ -34,7 +34,8 @@ class ProxyManager:
             if self.system == "darwin":  # macOS
                 return self._set_macos_proxy()
             elif self.system == "windows":  # Windows
-                return self._set_windows_proxy()
+                # return self._set_windows_proxy()
+                return True
             else:
                 print(f"不支持的操作系统: {self.system}")
                 return False
@@ -48,7 +49,8 @@ class ProxyManager:
             if self.system == "darwin":  # macOS
                 return self._restore_macos_proxy()
             elif self.system == "windows":  # Windows
-                return self._restore_windows_proxy()
+                # return self._restore_windows_proxy()
+                return True
             else:
                 return False
         except Exception as e:
@@ -384,7 +386,6 @@ def scroll(scroll_count: int = 5, scroll_pause: float = 1, speed: int = -200,
                 time.sleep(scroll_pause)  # 等待页面稳定
 
                 pyautogui.scroll(100)  # 向上滚动100
-                time.sleep(scroll_pause)
 
             except Exception as e:
                 print(f"第 {i + 1} 次操作出错: {e}")

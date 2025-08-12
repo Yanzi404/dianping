@@ -1,8 +1,9 @@
 import json
-from typing import Dict, Any, Optional
-from mitmproxy import http
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any
+
+from mitmproxy import http
 
 from mysql import MySQLDatabase
 
