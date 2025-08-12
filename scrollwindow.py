@@ -233,12 +233,10 @@ class MitmWebManager:
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1),
-                "--set", "confdir=~/.mitmproxy"  # 指定配置目录
+                "--web-port", str(self.port + 1)
             ]
 
             print(f"启动mitmweb服务: {' '.join(cmd)}")
-            print(f"日志文件: {log_filename}")
             
             # 使用DEVNULL避免输出缓冲区问题，同时将输出重定向到日志文件
             self.process = subprocess.Popen(
@@ -394,7 +392,7 @@ class MitmWebManager:
         """重启服务的内部方法"""
         try:
             # 创建新的日志文件
-            log_filename = f"mitmweb_{int(time.time())}.log"
+            log_filename = f"mitm_log{int(time.time())}.log"
             self.log_file = open(log_filename, 'w', encoding='utf-8')
 
             # 启动mitmweb
@@ -402,8 +400,7 @@ class MitmWebManager:
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1),
-                "--set", "confdir=~/.mitmproxy"
+                "--web-port", str(self.port + 1)
             ]
 
             self.process = subprocess.Popen(
@@ -591,6 +588,9 @@ def scroll(scroll_count: int = 5, scroll_pause: float = 1, speed: int = -200,
 def main() -> None:
     """主程序入口"""
     global mitm_process, original_proxy_settings
+
+    Path("log/dianping_responses").mkdir(parents=True,exist_ok=True)
+    Path("log/mitm_log").mkdir(parents=True,exist_ok=True)
 
     # 注册退出清理函数
     atexit.register(cleanup_on_exit)

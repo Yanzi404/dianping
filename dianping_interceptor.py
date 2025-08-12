@@ -13,7 +13,7 @@ from mysql import MySQLDatabase
 
 # 确保保存目录存在
 SAVE_DIR = Path("log/dianping_responses")
-SAVE_DIR.mkdir(exist_ok=True)
+SAVE_DIR.mkdir(parents=True,exist_ok=True)
 
 # 常量定义
 TARGET_URL_PATTERN = "m.dianping.com/ugc/review/reviewlist"
