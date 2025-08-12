@@ -19,6 +19,8 @@ SAVE_DIR.mkdir(exist_ok=True)
 TARGET_URL_PATTERN = "m.dianping.com/ugc/review/reviewlist"
 SUCCESS_STATUS_CODE = 200
 
+def requests(flow: http.HTTPFlow) -> None:
+    pass
 
 def response(flow: http.HTTPFlow) -> None:
     """处理HTTP响应，拦截大众点评评论数据"""

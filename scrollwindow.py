@@ -4,6 +4,7 @@ import platform
 import signal
 import os
 import atexit
+import threading
 from typing import Optional, Tuple
 import pyautogui
 from pynput import keyboard
@@ -208,6 +209,11 @@ class MitmWebManager:
         self.script_path = script_path
         self.port = port
         self.process = None
+        self.log_file = None
+        self.monitor_thread = None
+        self.should_monitor = False
+        self.restart_count = 0
+        self.max_restarts = 3
 
     def start(self) -> bool:
         """启动mitmweb服务"""
@@ -217,48 +223,218 @@ class MitmWebManager:
                 print(f"错误: 找不到脚本文件 {self.script_path}")
                 return False
 
+            # 创建日志文件
+            log_filename = f"mitmweb_{int(time.time())}.log"
+            self.log_file = open(log_filename, 'w', encoding='utf-8')
+
             # 启动mitmweb
             cmd = [
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1)
+                "--web-port", str(self.port + 1),
+                "--set", "confdir=~/.mitmproxy"  # 指定配置目录
             ]
 
             print(f"启动mitmweb服务: {' '.join(cmd)}")
+            print(f"日志文件: {log_filename}")
+            
+            # 使用DEVNULL避免输出缓冲区问题，同时将输出重定向到日志文件
             self.process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                preexec_fn=os.setsid if platform.system() != "Windows" else None
+                stdout=self.log_file,
+                stderr=subprocess.STDOUT,  # 将stderr重定向到stdout
+                preexec_fn=os.setsid if platform.system() != "Windows" else None,
+                bufsize=0  # 无缓冲
             )
 
             # 等待服务启动
-            time.sleep(3)
+            print("等待mitmweb服务启动...")
+            for i in range(10):  # 最多等待10秒
+                time.sleep(1)
+                if self.process.poll() is None:
+                    # 进程还在运行，检查端口是否可用
+                    if self._check_service_ready():
+                        print(f"mitmweb服务已启动，端口: {self.port}")
+                        print(f"Web界面地址: http://127.0.0.1:{self.port + 1}")
+                        
+                        # 启动监控线程
+                        self._start_monitor()
+                        return True
+                else:
+                    # 进程已退出
+                    break
+                print(f"等待中... ({i+1}/10)")
 
-            # 检查进程是否还在运行
-            if self.process.poll() is None:
-                print(f"mitmweb服务已启动，端口: {self.port}")
-                print(f"Web界面地址: http://127.0.0.1:{self.port + 1}")
-                return True
+            # 如果到这里说明启动失败
+            if self.process.poll() is not None:
+                print(f"mitmweb进程已退出，退出码: {self.process.poll()}")
+                self._print_log_tail()
             else:
-                stdout, stderr = self.process.communicate()
-                print(f"mitmweb启动失败:")
-                print(f"stdout: {stdout.decode()}")
-                print(f"stderr: {stderr.decode()}")
-                return False
+                print("mitmweb服务启动超时")
+                self.stop()
+            
+            return False
 
         except FileNotFoundError:
             print("错误: 找不到mitmweb命令，请确保已安装mitmproxy")
+            print("安装命令: pip install mitmproxy")
             return False
         except Exception as e:
             print(f"启动mitmweb时发生错误: {e}")
             return False
 
+    def _check_service_ready(self) -> bool:
+        """检查服务是否准备就绪"""
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(('127.0.0.1', self.port))
+            sock.close()
+            return result == 0
+        except:
+            return False
+
+    def _print_log_tail(self):
+        """打印日志文件的最后几行"""
+        try:
+            if self.log_file:
+                self.log_file.flush()
+                self.log_file.close()
+                
+            # 重新打开文件读取内容
+            if hasattr(self, 'log_file') and self.log_file:
+                with open(self.log_file.name, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    if lines:
+                        print("mitmweb日志输出:")
+                        for line in lines[-10:]:  # 显示最后10行
+                            print(f"  {line.strip()}")
+        except Exception as e:
+            print(f"读取日志文件失败: {e}")
+
+    def is_running(self) -> bool:
+        """检查服务是否正在运行"""
+        if self.process is None:
+            return False
+        return self.process.poll() is None
+
+    def check_status(self) -> None:
+        """检查并报告服务状态"""
+        if not self.is_running():
+            print("警告: mitmweb服务已停止运行")
+            if self.process:
+                print(f"进程退出码: {self.process.poll()}")
+                self._print_log_tail()
+
+    def _start_monitor(self) -> None:
+        """启动监控线程"""
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            return
+            
+        self.should_monitor = True
+        self.monitor_thread = threading.Thread(target=self._monitor_process, daemon=True)
+        self.monitor_thread.start()
+        print("已启动mitmweb服务监控")
+
+    def _stop_monitor(self) -> None:
+        """停止监控线程"""
+        self.should_monitor = False
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.monitor_thread.join(timeout=2)
+
+    def _monitor_process(self) -> None:
+        """监控进程状态的线程函数"""
+        while self.should_monitor:
+            try:
+                if self.process and self.process.poll() is not None:
+                    # 进程已退出
+                    exit_code = self.process.poll()
+                    print(f"\n⚠️  mitmweb进程意外退出，退出码: {exit_code}")
+                    self._print_log_tail()
+                    
+                    # 尝试自动重启
+                    if self.restart_count < self.max_restarts:
+                        self.restart_count += 1
+                        print(f"尝试自动重启mitmweb服务 ({self.restart_count}/{self.max_restarts})...")
+                        
+                        # 清理当前进程状态
+                        self.process = None
+                        if self.log_file:
+                            try:
+                                self.log_file.close()
+                            except:
+                                pass
+                            self.log_file = None
+                        
+                        # 重启服务
+                        if self._restart_service():
+                            print("✅ mitmweb服务自动重启成功")
+                            continue
+                        else:
+                            print("❌ mitmweb服务自动重启失败")
+                    else:
+                        print(f"❌ 已达到最大重启次数 ({self.max_restarts})，停止自动重启")
+                    
+                    break
+                    
+                # 检查服务端口是否可用
+                elif not self._check_service_ready():
+                    print("⚠️  mitmweb服务端口不可用，可能存在问题")
+                
+                time.sleep(5)  # 每5秒检查一次
+                
+            except Exception as e:
+                print(f"监控线程发生错误: {e}")
+                time.sleep(5)
+
+    def _restart_service(self) -> bool:
+        """重启服务的内部方法"""
+        try:
+            # 创建新的日志文件
+            log_filename = f"mitmweb_{int(time.time())}.log"
+            self.log_file = open(log_filename, 'w', encoding='utf-8')
+
+            # 启动mitmweb
+            cmd = [
+                "mitmweb",
+                "-s", self.script_path,
+                "--listen-port", str(self.port),
+                "--web-port", str(self.port + 1),
+                "--set", "confdir=~/.mitmproxy"
+            ]
+
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=self.log_file,
+                stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid if platform.system() != "Windows" else None,
+                bufsize=0
+            )
+
+            # 等待服务启动
+            for i in range(10):
+                time.sleep(1)
+                if self.process.poll() is None and self._check_service_ready():
+                    return True
+                elif self.process.poll() is not None:
+                    break
+
+            return False
+
+        except Exception as e:
+            print(f"重启服务时发生错误: {e}")
+            return False
+
     def stop(self) -> bool:
         """停止mitmweb服务"""
         try:
+            # 停止监控线程
+            self._stop_monitor()
+            
             if self.process and self.process.poll() is None:
+                print("正在停止mitmweb服务...")
                 if platform.system() == "Windows":
                     self.process.terminate()
                 else:
@@ -267,20 +443,37 @@ class MitmWebManager:
                 # 等待进程结束
                 try:
                     self.process.wait(timeout=5)
+                    print("mitmweb服务已正常停止")
                 except subprocess.TimeoutExpired:
+                    print("强制终止mitmweb服务...")
                     if platform.system() == "Windows":
                         self.process.kill()
                     else:
                         os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    print("mitmweb服务已强制停止")
 
-                print("mitmweb服务已停止")
-                return True
-            else:
-                print("mitmweb服务未运行")
-                return True
+            # 关闭日志文件
+            if self.log_file:
+                try:
+                    self.log_file.close()
+                    self.log_file = None
+                except:
+                    pass
+
+            self.process = None
+            return True
 
         except Exception as e:
             print(f"停止mitmweb时发生错误: {e}")
+            # 确保清理资源
+            self._stop_monitor()
+            if self.log_file:
+                try:
+                    self.log_file.close()
+                    self.log_file = None
+                except:
+                    pass
+            self.process = None
             return False
 
 
@@ -344,6 +537,8 @@ def scroll(scroll_count: int = 5, scroll_pause: float = 1, speed: int = -200,
     - scroll_pause: 每次下滑后的暂停时间(秒)
     - read_region: 要读取文本的区域 (left, top, width, height)
     """
+    global mitm_process
+    
     # 创建控制器实例
     controller = ScrollController()
 
