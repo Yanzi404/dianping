@@ -34,6 +34,10 @@ class MySQLDatabase:
             self.cursor.close()
             self.connection.close()
             print("已断开数据库连接")
+    
+    def close(self):
+        """关闭数据库连接（与disconnect方法相同）"""
+        self.disconnect()
 
     def commit(self):
         """提交事务"""

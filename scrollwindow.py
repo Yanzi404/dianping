@@ -206,7 +206,7 @@ class ProxyManager:
 class MitmWebManager:
     """mitmweb服务管理器"""
 
-    def __init__(self, script_path: str = "dianping_interceptor.py", port: int = 8080):
+    def __init__(self, script_path: str = "pinglun_list.py", port: int = 8080):
         self.script_path = script_path
         self.port = port
         self.process = None
@@ -225,18 +225,19 @@ class MitmWebManager:
                 return False
 
             # 创建日志文件
-            log_filename = f"log/mitm_log/mitmweb_{int(time.time())}.log"
-            self.log_file = open(log_filename, 'w', encoding='utf-8')
+            log_filename = self._create_log_file()
 
             # 启动mitmweb
             cmd = [
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1)
+                "--web-port", str(self.port + 1),
+                "--set", "confdir=~/.mitmproxy"  # 指定配置目录
             ]
 
             print(f"启动mitmweb服务: {' '.join(cmd)}")
+            print(f"日志文件: {log_filename}")
             
             # 使用DEVNULL避免输出缓冲区问题，同时将输出重定向到日志文件
             self.process = subprocess.Popen(
@@ -282,6 +283,14 @@ class MitmWebManager:
         except Exception as e:
             print(f"启动mitmweb时发生错误: {e}")
             return False
+
+    def _create_log_file(self) -> str:
+        """创建日志文件并返回文件路径"""
+        log_dir = "log/mitm_log"
+        os.makedirs(log_dir, exist_ok=True)  # 确保目录存在
+        log_filename = f"{log_dir}/mitmweb_{int(time.time())}.log"
+        self.log_file = open(log_filename, 'w', encoding='utf-8')
+        return log_filename
 
     def _check_service_ready(self) -> bool:
         """检查服务是否准备就绪"""
@@ -392,15 +401,15 @@ class MitmWebManager:
         """重启服务的内部方法"""
         try:
             # 创建新的日志文件
-            log_filename = f"mitm_log{int(time.time())}.log"
-            self.log_file = open(log_filename, 'w', encoding='utf-8')
+            log_filename = self._create_log_file()
 
             # 启动mitmweb
             cmd = [
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1)
+                "--web-port", str(self.port + 1),
+                "--set", "confdir=~/.mitmproxy"
             ]
 
             self.process = subprocess.Popen(
@@ -589,8 +598,26 @@ def main() -> None:
     """主程序入口"""
     global mitm_process, original_proxy_settings
 
-    Path("log/dianping_responses").mkdir(parents=True,exist_ok=True)
-    Path("log/mitm_log").mkdir(parents=True,exist_ok=True)
+    # 初始化log文件夹
+    print("初始化日志文件夹...")
+    log_dirs = [
+        "log",
+        "log/dianping_responses",
+        "log/mitm_log",
+    ]
+    
+    for log_dir in log_dirs:
+        dir_path = Path(log_dir)
+        if not dir_path.exists():
+            try:
+                dir_path.mkdir(parents=True, exist_ok=True)
+                print(f"✅ 创建文件夹: {log_dir}")
+            except Exception as e:
+                print(f"❌ 创建文件夹失败 {log_dir}: {e}")
+        else:
+            print(f"📁 文件夹已存在: {log_dir}")
+    
+    print("日志文件夹初始化完成\n")
 
     # 注册退出清理函数
     atexit.register(cleanup_on_exit)
@@ -608,8 +635,6 @@ def main() -> None:
     print("正在初始化服务...")
 
     try:
-        # 确保保存目录存在
-        Path("log/mitm_log").mkdir(exist_ok=True)
         # 1. 启动mitmweb服务
         print("\n1. 启动mitmweb服务...")
         mitm_process = MitmWebManager()
