@@ -111,111 +111,136 @@ class ProxyManager:
             return False
     
     def _set_windows_proxy(self) -> bool:
-        """设置Windows代理"""
+        """设置Windows系统代理"""
         try:
             import winreg
             import ctypes
-            from ctypes import wintypes
             
-            print(f"正在设置Windows代理: {self.proxy_host}:{self.proxy_port}")
+            print(f"🔧 设置Windows代理: {self.proxy_host}:{self.proxy_port}")
             
-            # 打开注册表项
+            # 检查管理员权限
+            try:
+                is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+                if not is_admin:
+                    print("⚠️  建议以管理员身份运行以确保代理设置生效")
+            except:
+                pass
+            
+            # 检查注册表访问权限
+            registry_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
             try:
                 key = winreg.OpenKey(
                     winreg.HKEY_CURRENT_USER,
-                    r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                    registry_path,
                     0, winreg.KEY_ALL_ACCESS
                 )
+                print("✅ 注册表访问权限正常")
             except PermissionError:
-                print("错误: 无法访问注册表，可能需要管理员权限")
+                print("❌ 注册表访问权限不足")
+                print("💡 解决方案:")
+                print("   1. 以管理员身份运行此程序")
+                print("   2. 或手动设置代理: Windows设置 -> 网络和Internet -> 代理")
+                return False
+            except Exception as e:
+                print(f"❌ 注册表访问失败: {e}")
                 return False
             
-            # 保存原始设置
             try:
-                self.original_settings['ProxyEnable'] = winreg.QueryValueEx(key, "ProxyEnable")[0]
-                print(f"保存原始ProxyEnable: {self.original_settings['ProxyEnable']}")
-            except FileNotFoundError:
-                self.original_settings['ProxyEnable'] = 0
-                print("ProxyEnable不存在，设为默认值0")
+                # 保存当前设置
+                try:
+                    self.original_settings['ProxyEnable'] = winreg.QueryValueEx(key, "ProxyEnable")[0]
+                    print(f"📋 当前ProxyEnable: {self.original_settings['ProxyEnable']}")
+                except FileNotFoundError:
+                    self.original_settings['ProxyEnable'] = 0
+                    print("📋 ProxyEnable不存在，默认为0")
                 
-            try:
-                self.original_settings['ProxyServer'] = winreg.QueryValueEx(key, "ProxyServer")[0]
-                print(f"保存原始ProxyServer: {self.original_settings['ProxyServer']}")
-            except FileNotFoundError:
-                self.original_settings['ProxyServer'] = ""
-                print("ProxyServer不存在，设为默认值空字符串")
-            
-            # 保存ProxyOverride设置
-            try:
-                self.original_settings['ProxyOverride'] = winreg.QueryValueEx(key, "ProxyOverride")[0]
-                print(f"保存原始ProxyOverride: {self.original_settings['ProxyOverride']}")
-            except FileNotFoundError:
-                self.original_settings['ProxyOverride'] = ""
-                print("ProxyOverride不存在，设为默认值空字符串")
-            
-            # 设置代理
-            proxy_server = f"{self.proxy_host}:{self.proxy_port}"
-            
-            # 启用代理
-            winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 1)
-            print("已启用代理")
-            
-            # 设置代理服务器
-            winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy_server)
-            print(f"已设置代理服务器: {proxy_server}")
-            
-            # 设置代理覆盖（绕过本地地址）
-            proxy_override = "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*;<local>"
-            winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, proxy_override)
-            print("已设置代理覆盖规则")
-            
-            winreg.CloseKey(key)
-            
-            # 通知系统代理设置已更改
-            try:
-                # 定义Windows API函数
-                internet_set_option = ctypes.windll.wininet.InternetSetOptionW
-                internet_set_option.argtypes = [
-                    wintypes.HANDLE,    # hInternet
-                    wintypes.DWORD,     # dwOption
-                    wintypes.LPVOID,    # lpBuffer
-                    wintypes.DWORD      # dwBufferLength
-                ]
-                internet_set_option.restype = wintypes.BOOL
+                try:
+                    self.original_settings['ProxyServer'] = winreg.QueryValueEx(key, "ProxyServer")[0]
+                    print(f"📋 当前ProxyServer: {self.original_settings['ProxyServer']}")
+                except FileNotFoundError:
+                    self.original_settings['ProxyServer'] = ""
+                    print("📋 ProxyServer不存在，默认为空")
                 
-                # INTERNET_OPTION_SETTINGS_CHANGED = 39
-                # INTERNET_OPTION_REFRESH = 37
-                result1 = internet_set_option(None, 39, None, 0)
-                result2 = internet_set_option(None, 37, None, 0)
+                try:
+                    self.original_settings['ProxyOverride'] = winreg.QueryValueEx(key, "ProxyOverride")[0]
+                    print(f"📋 当前ProxyOverride: {self.original_settings['ProxyOverride']}")
+                except FileNotFoundError:
+                    self.original_settings['ProxyOverride'] = ""
+                    print("📋 ProxyOverride不存在，默认为空")
+                
+                # 设置新的代理
+                proxy_server = f"{self.proxy_host}:{self.proxy_port}"
+                proxy_override = "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*;<local>"
+                
+                print(f"🔧 设置ProxyEnable = 1")
+                winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 1)
+                
+                print(f"🔧 设置ProxyServer = {proxy_server}")
+                winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy_server)
+                
+                print(f"🔧 设置ProxyOverride = {proxy_override}")
+                winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, proxy_override)
+                
+                print("✅ 注册表设置完成")
+                
+            finally:
+                winreg.CloseKey(key)
+            
+            # 刷新系统设置
+            try:
+                print("🔄 刷新系统代理设置...")
+                
+                # 通知系统代理设置已更改
+                INTERNET_OPTION_REFRESH = 37
+                INTERNET_OPTION_SETTINGS_CHANGED = 39
+                
+                wininet = ctypes.windll.wininet
+                result1 = wininet.InternetSetOptionW(0, INTERNET_OPTION_SETTINGS_CHANGED, 0, 0)
+                result2 = wininet.InternetSetOptionW(0, INTERNET_OPTION_REFRESH, 0, 0)
                 
                 if result1 and result2:
-                    print("已通知系统刷新代理设置")
+                    print("✅ 系统代理设置已刷新")
                 else:
-                    print("警告: 无法通知系统刷新代理设置，可能需要重启浏览器")
-                    
-            except Exception as refresh_error:
-                print(f"警告: 刷新代理设置时出错: {refresh_error}")
+                    print("⚠️  系统代理刷新可能不完整")
+                
+            except Exception as e:
+                print(f"⚠️  刷新系统设置失败: {e}")
+                print("💡 建议手动重启浏览器以使代理生效")
             
-            # 额外的刷新方法
+            # 验证设置是否成功
             try:
-                subprocess.run([
-                    "rundll32.exe", "url.dll,FileProtocolHandler", 
-                    "about:blank"
-                ], check=False, timeout=5)
-            except Exception:
-                pass
-            
-            print(f"✅ Windows代理设置完成: {self.proxy_host}:{self.proxy_port}")
-            print("提示: 如果浏览器代理未生效，请重启浏览器")
-            return True
+                verify_key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    registry_path,
+                    0, winreg.KEY_READ
+                )
+                
+                verify_enable = winreg.QueryValueEx(verify_key, "ProxyEnable")[0]
+                verify_server = winreg.QueryValueEx(verify_key, "ProxyServer")[0]
+                
+                winreg.CloseKey(verify_key)
+                
+                if verify_enable == 1 and verify_server == proxy_server:
+                    print("✅ 代理设置验证成功")
+                    print("💡 如果浏览器代理仍未生效，请重启浏览器")
+                    return True
+                else:
+                    print(f"⚠️  代理设置验证失败 - Enable: {verify_enable}, Server: {verify_server}")
+                    return False
+                    
+            except Exception as e:
+                print(f"⚠️  代理设置验证失败: {e}")
+                return True  # 设置可能成功，但验证失败
             
         except ImportError:
-            print("错误: 无法导入winreg模块，请确保在Windows系统上运行")
+            print("❌ 无法导入Windows注册表模块")
             return False
         except Exception as e:
-            print(f"设置Windows代理失败: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Windows代理设置失败: {e}")
+            print("💡 请尝试:")
+            print("   1. 以管理员身份运行")
+            print("   2. 手动设置代理")
+            print("   3. 运行 test_windows_proxy.py 进行诊断")
             return False
     
     def _restore_macos_proxy(self) -> bool:
@@ -248,71 +273,154 @@ class ProxyManager:
         try:
             import winreg
             import ctypes
-            from ctypes import wintypes
             
-            print("正在恢复Windows代理设置...")
+            print("🔄 恢复Windows代理设置...")
             
+            # 检查是否有保存的原始设置
+            if not hasattr(self, 'original_settings') or not self.original_settings:
+                print("⚠️  没有找到原始代理设置，将禁用代理")
+                # 如果没有原始设置，就简单地禁用代理
+                try:
+                    key = winreg.OpenKey(
+                        winreg.HKEY_CURRENT_USER,
+                        r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                        0, winreg.KEY_ALL_ACCESS
+                    )
+                    winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 0)
+                    winreg.CloseKey(key)
+                    print("✅ 已禁用代理")
+                    return True
+                except Exception as e:
+                    print(f"❌ 禁用代理失败: {e}")
+                    return False
+            
+            # 检查注册表访问权限
+            registry_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
             try:
                 key = winreg.OpenKey(
                     winreg.HKEY_CURRENT_USER,
-                    r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                    registry_path,
                     0, winreg.KEY_ALL_ACCESS
                 )
+                print("✅ 注册表访问权限正常")
             except PermissionError:
-                print("错误: 无法访问注册表，可能需要管理员权限")
+                print("❌ 注册表访问权限不足")
+                print("💡 解决方案:")
+                print("   1. 以管理员身份运行此程序")
+                print("   2. 或手动恢复代理设置")
+                return False
+            except Exception as e:
+                print(f"❌ 注册表访问失败: {e}")
                 return False
             
-            # 恢复原始设置
-            proxy_enable = self.original_settings.get('ProxyEnable', 0)
-            proxy_server = self.original_settings.get('ProxyServer', "")
-            proxy_override = self.original_settings.get('ProxyOverride', "")
-            
-            print(f"恢复ProxyEnable: {proxy_enable}")
-            winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, proxy_enable)
-            
-            print(f"恢复ProxyServer: {proxy_server}")
-            winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, proxy_server)
-            
-            print(f"恢复ProxyOverride: {proxy_override}")
-            winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, proxy_override)
-            
-            winreg.CloseKey(key)
-            
-            # 通知系统代理设置已更改
             try:
-                # 定义Windows API函数
-                internet_set_option = ctypes.windll.wininet.InternetSetOptionW
-                internet_set_option.argtypes = [
-                    wintypes.HANDLE,    # hInternet
-                    wintypes.DWORD,     # dwOption
-                    wintypes.LPVOID,    # lpBuffer
-                    wintypes.DWORD      # dwBufferLength
-                ]
-                internet_set_option.restype = wintypes.BOOL
+                # 恢复ProxyEnable设置
+                if 'ProxyEnable' in self.original_settings:
+                    original_enable = self.original_settings['ProxyEnable']
+                    winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, original_enable)
+                    print(f"📋 恢复ProxyEnable: {original_enable}")
+                else:
+                    winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 0)
+                    print("📋 设置ProxyEnable为默认值: 0")
                 
-                # INTERNET_OPTION_SETTINGS_CHANGED = 39
-                # INTERNET_OPTION_REFRESH = 37
-                result1 = internet_set_option(None, 39, None, 0)
-                result2 = internet_set_option(None, 37, None, 0)
+                # 恢复ProxyServer设置
+                if 'ProxyServer' in self.original_settings:
+                    original_server = self.original_settings['ProxyServer']
+                    if original_server:
+                        winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ, original_server)
+                        print(f"📋 恢复ProxyServer: {original_server}")
+                    else:
+                        try:
+                            winreg.DeleteValue(key, "ProxyServer")
+                            print("📋 删除ProxyServer（原为空）")
+                        except FileNotFoundError:
+                            print("📋 ProxyServer已不存在")
+                else:
+                    try:
+                        winreg.DeleteValue(key, "ProxyServer")
+                        print("📋 删除ProxyServer（无原始值）")
+                    except FileNotFoundError:
+                        print("📋 ProxyServer已不存在")
+                
+                # 恢复ProxyOverride设置
+                if 'ProxyOverride' in self.original_settings:
+                    original_override = self.original_settings['ProxyOverride']
+                    if original_override:
+                        winreg.SetValueEx(key, "ProxyOverride", 0, winreg.REG_SZ, original_override)
+                        print(f"📋 恢复ProxyOverride: {original_override}")
+                    else:
+                        try:
+                            winreg.DeleteValue(key, "ProxyOverride")
+                            print("📋 删除ProxyOverride（原为空）")
+                        except FileNotFoundError:
+                            print("📋 ProxyOverride已不存在")
+                else:
+                    try:
+                        winreg.DeleteValue(key, "ProxyOverride")
+                        print("📋 删除ProxyOverride（无原始值）")
+                    except FileNotFoundError:
+                        print("📋 ProxyOverride已不存在")
+                
+                print("✅ 注册表恢复完成")
+                
+            finally:
+                winreg.CloseKey(key)
+            
+            # 刷新系统设置
+            try:
+                print("🔄 刷新系统代理设置...")
+                
+                # 通知系统代理设置已更改
+                INTERNET_OPTION_REFRESH = 37
+                INTERNET_OPTION_SETTINGS_CHANGED = 39
+                
+                wininet = ctypes.windll.wininet
+                result1 = wininet.InternetSetOptionW(0, INTERNET_OPTION_SETTINGS_CHANGED, 0, 0)
+                result2 = wininet.InternetSetOptionW(0, INTERNET_OPTION_REFRESH, 0, 0)
                 
                 if result1 and result2:
-                    print("已通知系统刷新代理设置")
+                    print("✅ 系统代理设置已刷新")
                 else:
-                    print("警告: 无法通知系统刷新代理设置")
-                    
-            except Exception as refresh_error:
-                print(f"警告: 刷新代理设置时出错: {refresh_error}")
+                    print("⚠️  系统代理刷新可能不完整")
+                
+            except Exception as e:
+                print(f"⚠️  刷新系统设置失败: {e}")
+                print("💡 建议手动重启浏览器以使设置生效")
             
-            print("✅ Windows代理设置已恢复")
-            return True
+            # 验证恢复是否成功
+            try:
+                verify_key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    registry_path,
+                    0, winreg.KEY_READ
+                )
+                
+                verify_enable = winreg.QueryValueEx(verify_key, "ProxyEnable")[0]
+                expected_enable = self.original_settings.get('ProxyEnable', 0)
+                
+                winreg.CloseKey(verify_key)
+                
+                if verify_enable == expected_enable:
+                    print("✅ 代理恢复验证成功")
+                    print("💡 如果浏览器代理仍未恢复，请重启浏览器")
+                    return True
+                else:
+                    print(f"⚠️  代理恢复验证失败 - 当前Enable: {verify_enable}, 期望: {expected_enable}")
+                    return False
+                    
+            except Exception as e:
+                print(f"⚠️  代理恢复验证失败: {e}")
+                return True  # 恢复可能成功，但验证失败
             
         except ImportError:
-            print("错误: 无法导入winreg模块，请确保在Windows系统上运行")
+            print("❌ 无法导入Windows注册表模块")
             return False
         except Exception as e:
-            print(f"恢复Windows代理失败: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Windows代理恢复失败: {e}")
+            print("💡 请尝试:")
+            print("   1. 以管理员身份运行")
+            print("   2. 手动恢复代理设置")
+            print("   3. 重启浏览器")
             return False
 
 
@@ -327,76 +435,309 @@ class MitmWebManager:
     def start(self) -> bool:
         """启动mitmweb服务"""
         try:
+            print(f"🚀 准备启动mitmweb服务...")
+            
             # 检查脚本文件是否存在
             if not os.path.exists(self.script_path):
-                print(f"错误: 找不到脚本文件 {self.script_path}")
+                print(f"❌ 找不到脚本文件: {self.script_path}")
                 return False
             
-            # 启动mitmweb
+            print(f"✅ 脚本文件存在: {self.script_path}")
+            
+            # 检查mitmweb是否可用
+            try:
+                result = subprocess.run(["mitmweb", "--version"], 
+                                      capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    print(f"✅ mitmweb版本: {result.stdout.strip()}")
+                else:
+                    print(f"⚠️  mitmweb版本检查失败: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                print("⚠️  mitmweb版本检查超时")
+            except FileNotFoundError:
+                print("❌ 找不到mitmweb命令，请确保已安装mitmproxy")
+                print("💡 安装命令: pip install mitmproxy")
+                return False
+            
+            # 检查端口是否被占用
+            if self._is_port_in_use(self.port):
+                print(f"⚠️  端口 {self.port} 已被占用，尝试终止占用进程...")
+                self._kill_port_process(self.port)
+                time.sleep(2)
+                
+                if self._is_port_in_use(self.port):
+                    print(f"❌ 端口 {self.port} 仍被占用，无法启动服务")
+                    return False
+            
+            if self._is_port_in_use(self.port + 1):
+                print(f"⚠️  Web端口 {self.port + 1} 已被占用，尝试终止占用进程...")
+                self._kill_port_process(self.port + 1)
+                time.sleep(2)
+            
+            # 构建启动命令
             cmd = [
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1)
+                "--web-port", str(self.port + 1),
+                "--no-web-open-browser"  # 不自动打开浏览器
             ]
             
-            print(f"启动mitmweb服务: {' '.join(cmd)}")
+            # Windows特定设置
+            if platform.system() == "Windows":
+                # 在Windows上使用CREATE_NEW_PROCESS_GROUP
+                creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+                preexec_fn = None
+            else:
+                creation_flags = 0
+                preexec_fn = os.setsid
+            
+            print(f"🔧 启动命令: {' '.join(cmd)}")
+            
+            # 启动进程
             self.process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                preexec_fn=os.setsid if platform.system() != "Windows" else None
+                creationflags=creation_flags if platform.system() == "Windows" else 0,
+                preexec_fn=preexec_fn
             )
             
-            # 等待服务启动
-            time.sleep(3)
+            print(f"📋 进程ID: {self.process.pid}")
             
-            # 检查进程是否还在运行
-            if self.process.poll() is None:
-                print(f"mitmweb服务已启动，端口: {self.port}")
-                print(f"Web界面地址: http://127.0.0.1:{self.port + 1}")
-                return True
-            else:
-                stdout, stderr = self.process.communicate()
-                print(f"mitmweb启动失败:")
-                print(f"stdout: {stdout.decode()}")
-                print(f"stderr: {stderr.decode()}")
-                return False
+            # 等待服务启动并检查状态
+            for i in range(10):  # 最多等待10秒
+                time.sleep(1)
                 
-        except FileNotFoundError:
-            print("错误: 找不到mitmweb命令，请确保已安装mitmproxy")
-            return False
+                # 检查进程是否还在运行
+                if self.process.poll() is not None:
+                    stdout, stderr = self.process.communicate()
+                    print(f"❌ mitmweb进程已退出，返回码: {self.process.returncode}")
+                    print(f"📄 标准输出: {stdout.decode('utf-8', errors='ignore')}")
+                    print(f"📄 错误输出: {stderr.decode('utf-8', errors='ignore')}")
+                    return False
+                
+                # 检查端口是否开始监听
+                if self._is_port_listening(self.port):
+                    print(f"✅ 代理端口 {self.port} 已开始监听")
+                    break
+                    
+                print(f"⏳ 等待服务启动... ({i+1}/10)")
+            else:
+                print("❌ 服务启动超时")
+                self.stop()
+                return False
+            
+            # 检查Web界面端口
+            for i in range(5):  # 最多等待5秒
+                time.sleep(1)
+                if self._is_port_listening(self.port + 1):
+                    print(f"✅ Web界面端口 {self.port + 1} 已开始监听")
+                    break
+                print(f"⏳ 等待Web界面启动... ({i+1}/5)")
+            
+            # 验证服务是否正常工作
+            try:
+                import requests
+                response = requests.get(f"http://127.0.0.1:{self.port + 1}", timeout=5)
+                if response.status_code == 200:
+                    print("✅ Web界面响应正常")
+                else:
+                    print(f"⚠️  Web界面响应异常，状态码: {response.status_code}")
+            except Exception as e:
+                print(f"⚠️  Web界面验证失败: {e}")
+            
+            print(f"🎉 mitmweb服务启动成功!")
+            print(f"📡 代理地址: 127.0.0.1:{self.port}")
+            print(f"🌐 Web界面: http://127.0.0.1:{self.port + 1}")
+            print("💡 提示: 请确保浏览器已设置代理")
+            
+            return True
+                
         except Exception as e:
-            print(f"启动mitmweb时发生错误: {e}")
+            print(f"❌ 启动mitmweb时发生错误: {e}")
+            import traceback
+            traceback.print_exc()
             return False
+    
+    def _is_port_in_use(self, port: int) -> bool:
+        """检查端口是否被占用"""
+        try:
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                result = s.connect_ex(('127.0.0.1', port))
+                return result == 0
+        except Exception:
+            return False
+    
+    def _is_port_listening(self, port: int) -> bool:
+        """检查端口是否在监听"""
+        try:
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                result = s.connect_ex(('127.0.0.1', port))
+                return result == 0
+        except Exception:
+            return False
+    
+    def _kill_port_process(self, port: int) -> None:
+        """终止占用指定端口的进程"""
+        try:
+            if platform.system() == "Windows":
+                # Windows下查找并终止占用端口的进程
+                result = subprocess.run(
+                    ["netstat", "-ano"], 
+                    capture_output=True, text=True, timeout=10
+                )
+                
+                for line in result.stdout.split('\n'):
+                    if f":{port}" in line and "LISTENING" in line:
+                        parts = line.split()
+                        if len(parts) >= 5:
+                            pid = parts[-1]
+                            try:
+                                subprocess.run(["taskkill", "/F", "/PID", pid], 
+                                             capture_output=True, timeout=5)
+                                print(f"✅ 已终止进程 PID: {pid}")
+                            except Exception as e:
+                                print(f"⚠️  终止进程失败: {e}")
+            else:
+                # Linux/macOS下终止占用端口的进程
+                result = subprocess.run(
+                    ["lsof", "-ti", f":{port}"], 
+                    capture_output=True, text=True, timeout=10
+                )
+                
+                if result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            subprocess.run(["kill", "-9", pid], timeout=5)
+                            print(f"✅ 已终止进程 PID: {pid}")
+                        except Exception as e:
+                            print(f"⚠️  终止进程失败: {e}")
+                            
+        except Exception as e:
+            print(f"⚠️  查找端口占用进程失败: {e}")
     
     def stop(self) -> bool:
         """停止mitmweb服务"""
         try:
+            print("🛑 正在停止mitmweb服务...")
+            
             if self.process and self.process.poll() is None:
+                print(f"📋 终止进程 PID: {self.process.pid}")
+                
                 if platform.system() == "Windows":
-                    self.process.terminate()
+                    # Windows下使用taskkill强制终止进程树
+                    try:
+                        subprocess.run([
+                            "taskkill", "/F", "/T", "/PID", str(self.process.pid)
+                        ], capture_output=True, timeout=10)
+                        print("✅ 使用taskkill终止进程")
+                    except Exception as e:
+                        print(f"⚠️  taskkill失败: {e}")
+                        # 备用方法
+                        try:
+                            self.process.terminate()
+                            print("✅ 使用terminate终止进程")
+                        except Exception as e2:
+                            print(f"⚠️  terminate失败: {e2}")
                 else:
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                    # Linux/macOS下终止进程组
+                    try:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                        print("✅ 发送SIGTERM信号")
+                    except Exception as e:
+                        print(f"⚠️  发送SIGTERM失败: {e}")
+                        self.process.terminate()
                 
                 # 等待进程结束
                 try:
                     self.process.wait(timeout=5)
+                    print("✅ 进程已正常退出")
                 except subprocess.TimeoutExpired:
+                    print("⚠️  进程未在5秒内退出，强制终止...")
+                    
                     if platform.system() == "Windows":
-                        self.process.kill()
+                        try:
+                            subprocess.run([
+                                "taskkill", "/F", "/T", "/PID", str(self.process.pid)
+                            ], capture_output=True, timeout=5)
+                            print("✅ 强制终止成功")
+                        except Exception as e:
+                            print(f"⚠️  强制终止失败: {e}")
+                            try:
+                                self.process.kill()
+                                print("✅ 使用kill终止进程")
+                            except Exception as e2:
+                                print(f"⚠️  kill失败: {e2}")
                     else:
-                        os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        try:
+                            os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                            print("✅ 发送SIGKILL信号")
+                        except Exception as e:
+                            print(f"⚠️  发送SIGKILL失败: {e}")
+                            self.process.kill()
                 
-                print("mitmweb服务已停止")
+                # 额外清理：终止可能残留的mitmweb进程
+                self._cleanup_mitmweb_processes()
+                
+                print("✅ mitmweb服务已停止")
                 return True
             else:
-                print("mitmweb服务未运行")
+                print("ℹ️  mitmweb服务未运行")
+                # 仍然尝试清理可能的残留进程
+                self._cleanup_mitmweb_processes()
                 return True
                 
         except Exception as e:
-            print(f"停止mitmweb时发生错误: {e}")
+            print(f"❌ 停止mitmweb时发生错误: {e}")
+            # 尝试清理残留进程
+            self._cleanup_mitmweb_processes()
             return False
+    
+    def _cleanup_mitmweb_processes(self) -> None:
+        """清理可能残留的mitmweb进程"""
+        try:
+            if platform.system() == "Windows":
+                # Windows下查找并终止所有mitmweb进程
+                result = subprocess.run([
+                    "tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV"
+                ], capture_output=True, text=True, timeout=10)
+                
+                # 查找包含mitmweb的进程
+                for line in result.stdout.split('\n'):
+                    if 'mitmweb' in line.lower():
+                        parts = line.split(',')
+                        if len(parts) >= 2:
+                            pid = parts[1].strip('"')
+                            try:
+                                subprocess.run([
+                                    "taskkill", "/F", "/PID", pid
+                                ], capture_output=True, timeout=5)
+                                print(f"✅ 清理残留进程 PID: {pid}")
+                            except Exception:
+                                pass
+            else:
+                # Linux/macOS下查找并终止mitmweb进程
+                result = subprocess.run([
+                    "pgrep", "-f", "mitmweb"
+                ], capture_output=True, text=True, timeout=10)
+                
+                if result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            subprocess.run(["kill", "-9", pid], timeout=5)
+                            print(f"✅ 清理残留进程 PID: {pid}")
+                        except Exception:
+                            pass
+                            
+        except Exception as e:
+            print(f"⚠️  清理残留进程失败: {e}")
 
 
 def cleanup_on_exit():
