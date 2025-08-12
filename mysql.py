@@ -41,9 +41,9 @@ class MySQLDatabase:
             self.connection.commit()
             print("已提交事务")
 
-    def execute(self, query):
+    def execute(self, query,args):
         """执行SQL"""
         try:
-            self.cursor.execute(query)
+            self.cursor.execute(query, args)
         except MySQLError as e:
             print(f"执行失败: {e}")

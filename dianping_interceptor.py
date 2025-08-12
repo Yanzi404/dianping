@@ -98,9 +98,9 @@ def parse_json(response_data: Dict[str, Any], shop_uuid: str, offset: str) -> No
             # 提取图片URL
             pics = _extract_review_pics(review)
             
-            # 使用参数化查询防止SQL注入
+            # reviewId, shopUuid, userId, addTime, text, pics, star, offset
             sql = """
-                INSERT INTO reviews(reviewId, shopUuid, userId, addTime, text, pics, star, offset) 
+                INSERT INTO reviews(reviewId, shopUuid, userId, addTime, text, pics, star, offset)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
             db.execute(sql, (review_id, shop_uuid, user_id, add_time, text, pics, star, offset))
