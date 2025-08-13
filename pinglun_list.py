@@ -40,7 +40,11 @@ def response(flow: http.HTTPFlow) -> None:
             return
             
         # 获取请求参数
-        shop_uuid = flow.request.query.get('mtsiReferrer')[-16:]
+
+        shop_uuid= flow.request.query.get('shopId')
+        if not shop_uuid:
+            shop_uuid = flow.request.query.get('mtsiReferrer')[-16:]
+
         print(shop_uuid)
         offset = flow.request.query.get('offset')
         
