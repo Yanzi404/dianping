@@ -232,13 +232,12 @@ class MitmWebManager:
                 "mitmweb",
                 "-s", self.script_path,
                 "--listen-port", str(self.port),
-                "--web-port", str(self.port + 1),
-                "--set", "confdir=~/.mitmproxy"  # 指定配置目录
+                "--web-port", str(self.port + 1)
             ]
 
             print(f"启动mitmweb服务: {' '.join(cmd)}")
             print(f"日志文件: {log_filename}")
-            
+
             # 使用DEVNULL避免输出缓冲区问题，同时将输出重定向到日志文件
             self.process = subprocess.Popen(
                 cmd,
@@ -257,14 +256,14 @@ class MitmWebManager:
                     if self._check_service_ready():
                         print(f"mitmweb服务已启动，端口: {self.port}")
                         print(f"Web界面地址: http://127.0.0.1:{self.port + 1}")
-                        
+
                         # 启动监控线程
                         self._start_monitor()
                         return True
                 else:
                     # 进程已退出
                     break
-                print(f"等待中... ({i+1}/10)")
+                print(f"等待中... ({i + 1}/10)")
 
             # 如果到这里说明启动失败
             if self.process.poll() is not None:
@@ -273,7 +272,7 @@ class MitmWebManager:
             else:
                 print("mitmweb服务启动超时")
                 self.stop()
-            
+
             return False
 
         except FileNotFoundError:
@@ -286,9 +285,7 @@ class MitmWebManager:
 
     def _create_log_file(self) -> str:
         """创建日志文件并返回文件路径"""
-        log_dir = "log/mitm_log"
-        os.makedirs(log_dir, exist_ok=True)  # 确保目录存在
-        log_filename = f"{log_dir}/mitmweb_{int(time.time())}.log"
+        log_filename = f"log/mitm_log/{int(time.time())}.log"
         self.log_file = open(log_filename, 'w', encoding='utf-8')
         return log_filename
 
@@ -310,7 +307,7 @@ class MitmWebManager:
             if self.log_file:
                 self.log_file.flush()
                 self.log_file.close()
-                
+
             # 重新打开文件读取内容
             if hasattr(self, 'log_file') and self.log_file:
                 with open(self.log_file.name, 'r', encoding='utf-8') as f:
@@ -340,7 +337,7 @@ class MitmWebManager:
         """启动监控线程"""
         if self.monitor_thread and self.monitor_thread.is_alive():
             return
-            
+
         self.should_monitor = True
         self.monitor_thread = threading.Thread(target=self._monitor_process, daemon=True)
         self.monitor_thread.start()
@@ -361,12 +358,12 @@ class MitmWebManager:
                     exit_code = self.process.poll()
                     print(f"\n⚠️  mitmweb进程意外退出，退出码: {exit_code}")
                     self._print_log_tail()
-                    
+
                     # 尝试自动重启
                     if self.restart_count < self.max_restarts:
                         self.restart_count += 1
                         print(f"尝试自动重启mitmweb服务 ({self.restart_count}/{self.max_restarts})...")
-                        
+
                         # 清理当前进程状态
                         self.process = None
                         if self.log_file:
@@ -375,7 +372,7 @@ class MitmWebManager:
                             except:
                                 pass
                             self.log_file = None
-                        
+
                         # 重启服务
                         if self._restart_service():
                             print("✅ mitmweb服务自动重启成功")
@@ -384,15 +381,15 @@ class MitmWebManager:
                             print("❌ mitmweb服务自动重启失败")
                     else:
                         print(f"❌ 已达到最大重启次数 ({self.max_restarts})，停止自动重启")
-                    
+
                     break
-                    
+
                 # 检查服务端口是否可用
                 elif not self._check_service_ready():
                     print("⚠️  mitmweb服务端口不可用，可能存在问题")
-                
+
                 time.sleep(5)  # 每5秒检查一次
-                
+
             except Exception as e:
                 print(f"监控线程发生错误: {e}")
                 time.sleep(5)
@@ -439,7 +436,7 @@ class MitmWebManager:
         try:
             # 停止监控线程
             self._stop_monitor()
-            
+
             if self.process and self.process.poll() is None:
                 print("正在停止mitmweb服务...")
                 if platform.system() == "Windows":
@@ -545,7 +542,7 @@ def scroll(scroll_count: int = 5, scroll_pause: float = 1, speed: int = -200,
     - read_region: 要读取文本的区域 (left, top, width, height)
     """
     global mitm_process
-    
+
     # 创建控制器实例
     controller = ScrollController()
 
@@ -598,26 +595,8 @@ def main() -> None:
     """主程序入口"""
     global mitm_process, original_proxy_settings
 
-    # 初始化log文件夹
-    print("初始化日志文件夹...")
-    log_dirs = [
-        "log",
-        "log/dianping_responses",
-        "log/mitm_log",
-    ]
-    
-    for log_dir in log_dirs:
-        dir_path = Path(log_dir)
-        if not dir_path.exists():
-            try:
-                dir_path.mkdir(parents=True, exist_ok=True)
-                print(f"✅ 创建文件夹: {log_dir}")
-            except Exception as e:
-                print(f"❌ 创建文件夹失败 {log_dir}: {e}")
-        else:
-            print(f"📁 文件夹已存在: {log_dir}")
-    
-    print("日志文件夹初始化完成\n")
+    Path('log/mitm_log').mkdir(parents=True, exist_ok=True)
+    Path('log/dianping_responses').mkdir(parents=True, exist_ok=True)
 
     # 注册退出清理函数
     atexit.register(cleanup_on_exit)
@@ -663,7 +642,6 @@ def main() -> None:
             print(f"倒计时: {i} 秒", end='\r')
             time.sleep(1)
         print("\n开始数据采集...")
-
 
         # 4. 开始滚动采集
         scroll(scroll_count=99999, scroll_pause=2, speed=-1000)
