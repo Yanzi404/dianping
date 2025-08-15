@@ -206,7 +206,7 @@ class ProxyManager:
 class MitmWebManager:
     """mitmweb服务管理器"""
 
-    def __init__(self, script_path: str = "pinglun_list.py", port: int = 8080):
+    def __init__(self, script_path: str = "src/pinglun_list.py", port: int = 8080):
         self.script_path = script_path
         self.port = port
         self.process = None
