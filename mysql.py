@@ -1,5 +1,6 @@
 import pymysql
 from pymysql import MySQLError, cursors
+from config import DatabaseConfig
 
 
 class MySQLDatabase:
@@ -16,14 +17,10 @@ class MySQLDatabase:
     def __connect(self):
         """连接到MySQL数据库"""
         try:
-            self.connection = pymysql.connect(
-                host='47.122.123.221',  # 数据库主机地址
-                port=3306,
-                user='root',  # 数据库用户名
-                password='cs8Gz7dKHDyhAPaz',  # 数据库密码
-                database='dianping_spiders',  # 数据库名
-                charset='utf8mb4',
-            )
+            # 从配置文件获取数据库连接信息
+            db_config = DatabaseConfig.get_mysql_config()
+            
+            self.connection = pymysql.connect(**db_config)
             self.cursor = self.connection.cursor(cursor=cursors.DictCursor)
         except MySQLError as e:
             print(f"连接失败: {e}")
